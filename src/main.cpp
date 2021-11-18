@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Hardware.hpp>
 
-// SomfyDuino
+// SomfyDuino Test Test Test
 // by Bjoern Foldenauer
 // 05/2017
 
