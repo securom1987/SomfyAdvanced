@@ -1,25 +1,16 @@
 #include <Arduino.h>
-#include <Hardware.hpp>
 
-// SomfyDuino Test Test Test
+// SomfyDuino
 // by Bjoern Foldenauer
-// 05/2017
+// adapted by Holger Döring
+// 11/2021
 
 #define DEBUG true
 
-void sendCommand();
-void wakeUpRemote();
-double measureVoltage(uint8_t Pin);
-int getActiveChannel();
-void pressSelect();
-
-//Voltage Measuring Pins A0 = Ch1 (zB. Wohnzimmer), A1 = Ch2 (Küchentür), A2 = Ch3 (Küchenfenster), A3 = Ch4(Bad), A4 = Ch5 (Oben)
+// Voltage Measuring Pins A0 = Ch1 (zB. Wohnzimmer), A1 = Ch2 (Küchentür), A2 = Ch3 (Küchenfenster), A3 = Ch4(Bad), A4 = Ch5 (Oben)
 #define REF_VOLTAGE    5.0
 #define PIN_STEPS   1024.0
 #define MAX_CHANNEL 5
-
-int iActualChannel = 0;           // indicator which is the actual Channel
-float measuredLEDVoltage = 2.0;   // LED Voltage Level, when LED is Switched on
 
 int progPin = 8;
 int upPin = 12;
@@ -28,14 +19,32 @@ int myPin = 11;
 int selectPin = 9;
 int ledPin = 13;
 
+void sendCommand();
+double measureVoltage(uint8_t Pin);
+int getActiveChannel();
+void switchChannelOrWakeUpRemote();
+void resetConfiguration();
+void switchToChannel(int newChannel);
+
+void pressUp(int holdTime);
+void pressDown(int holdTime);
+void pressProg(int holdTime);
+void pressMy(int holdTime);
+void pressSelect(int holdTime);
 
 boolean upPress = false;
 boolean downPress = false;
 boolean myPress = false;
 boolean progPress = false;
 boolean selectPress = false;
-boolean channelSwitch = false;      // indicator if a channelSwitch is needed
-int wantedChannel = 0;              // new Channel to switch to
+
+boolean doChannelSwitch = false;
+
+boolean channelSwitchNecessary = false;      // Temporary indicator if a channelSwitchNecessary is needed
+
+int iActualChannel = 0;             // Indicator which is the actual Channel
+float measuredLedVoltage = 1.0;     // LED voltage Level, when LED is Switched on
+int wantedChannel = 0;              // New channel to switch to
 unsigned long holdTime = 0;
 int repeatSend = 0;
 
@@ -64,12 +73,11 @@ void setup() {
     Serial.println("");
   }
 
-  
-  wakeUpRemote();
-  //iActualChannel = getActiveChannel();
+  switchChannelOrWakeUpRemote();
 
   if(DEBUG){
-    Serial.println("Actual Channel is: " + iActualChannel);
+    Serial.print("Actual Channel is: ");
+    Serial.println(iActualChannel);
   }
 
   pinMode(progPin, OUTPUT);
@@ -84,7 +92,8 @@ void setup() {
   digitalWrite(downPin, HIGH);
   digitalWrite(myPin, HIGH);
   digitalWrite(selectPin, HIGH);
-  digitalWrite(ledPin, LOW);    
+
+  digitalWrite(ledPin, LOW);                      // LED off    
                 
 }
 
@@ -92,6 +101,8 @@ void loop() {
   
   while (Serial.available() == 0) { 
     delay(50);                                    // wait until serial command comes in
+    //switchChannelOrWakeUpRemote();
+    //delay(5000);
   }  
   
   if (Serial.available() > 0) {
@@ -103,55 +114,64 @@ void loop() {
                                                   // c3u5e
     if (incomingChar == 'u') {upPress = true;}    // for every char in the message configure the actions
     if (incomingChar == 'd') {downPress = true;}
-    if (incomingChar == 'c') {channelSwitch = true;} 
+    if (incomingChar == 'c') {channelSwitchNecessary = true;} 
     if (incomingChar == 'm') {myPress = true;}
     if (incomingChar == 'p') {progPress = true;}
     if (incomingChar == 's') {selectPress = true;}
     
-    if (incomingChar == '1' && channelSwitch == false) {holdTime += 100;} // if no 'c' found --> channelSwitch remains false
-    else if(incomingChar == '1' && channelSwitch == true){
+    if (incomingChar == '1' && channelSwitchNecessary == false) {holdTime += 100;} // if no 'c' found --> channelSwitchNecessary remains false
+    else if(incomingChar == '1' && channelSwitchNecessary == true){
         wantedChannel = incomingChar;
-        channelSwitch = false;}                                   // if 'c' found --> channelSwitch is true, then our number is our channel
+        doChannelSwitch = true;
+        channelSwitchNecessary = false;}                                   // if 'c' found --> channelSwitchNecessary is true, then our number is our channel
     
-    if (incomingChar == '2' && channelSwitch == false) {holdTime += 200;}
-    else if(incomingChar == '2' && channelSwitch == true){
+    if (incomingChar == '2' && channelSwitchNecessary == false) {holdTime += 200;}
+    else if(incomingChar == '2' && channelSwitchNecessary == true){
         wantedChannel = incomingChar;
-        channelSwitch = false;}
+        doChannelSwitch = true;
+        channelSwitchNecessary = false;}
 
-    if (incomingChar == '3' && channelSwitch == false) {holdTime += 300;}
-    else if(incomingChar == '3' && channelSwitch == true){
+    if (incomingChar == '3' && channelSwitchNecessary == false) {holdTime += 300;}
+    else if(incomingChar == '3' && channelSwitchNecessary == true){
         wantedChannel = incomingChar;
-        channelSwitch = false;}
+        doChannelSwitch = true;
+        channelSwitchNecessary = false;}
     
-    if (incomingChar == '4' && channelSwitch == false) {holdTime += 400;}
-    else if(incomingChar == '4' && channelSwitch == true){
+    if (incomingChar == '4' && channelSwitchNecessary == false) {holdTime += 400;}
+    else if(incomingChar == '4' && channelSwitchNecessary == true){
         wantedChannel = incomingChar;
-        channelSwitch = false;}
+        doChannelSwitch = true;
+        channelSwitchNecessary = false;}
     
-    if (incomingChar == '5' && channelSwitch == false) {holdTime += 500;}
-    else if(incomingChar == '5' && channelSwitch == true){
+    if (incomingChar == '5' && channelSwitchNecessary == false) {holdTime += 500;}
+    else if(incomingChar == '5' && channelSwitchNecessary == true){
         wantedChannel = incomingChar;
-        channelSwitch = false;}
+        doChannelSwitch = true;
+        channelSwitchNecessary = false;}
     
-    if (incomingChar == '6' && channelSwitch == false) {holdTime += 600;}
-    else if(incomingChar == '6' && channelSwitch == true){
+    if (incomingChar == '6' && channelSwitchNecessary == false) {holdTime += 600;}
+    else if(incomingChar == '6' && channelSwitchNecessary == true){
         wantedChannel = incomingChar;
-        channelSwitch = false;}
+        doChannelSwitch = true;
+        channelSwitchNecessary = false;}
     
-    if (incomingChar == '7' && channelSwitch == false) {holdTime += 700;}
-    else if(incomingChar == '7' && channelSwitch == true){
+    if (incomingChar == '7' && channelSwitchNecessary == false) {holdTime += 700;}
+    else if(incomingChar == '7' && channelSwitchNecessary == true){
         wantedChannel = incomingChar;
-        channelSwitch = false;}
+        doChannelSwitch = true;
+        channelSwitchNecessary = false;}
     
-    if (incomingChar == '8' && channelSwitch == false) {holdTime += 800;}
-    else if(incomingChar == '8' && channelSwitch == true){
+    if (incomingChar == '8' && channelSwitchNecessary == false) {holdTime += 800;}
+    else if(incomingChar == '8' && channelSwitchNecessary == true){
         wantedChannel = incomingChar;
-        channelSwitch = false;}
+        doChannelSwitch = true;
+        channelSwitchNecessary = false;}
     
-    if (incomingChar == '9' && channelSwitch == false) {holdTime += 900;}
-    else if(incomingChar == '9' && channelSwitch == false){
+    if (incomingChar == '9' && channelSwitchNecessary == false) {holdTime += 900;}
+    else if(incomingChar == '9' && channelSwitchNecessary == false){
         wantedChannel = incomingChar;
-        channelSwitch = false;}
+        doChannelSwitch = true;
+        channelSwitchNecessary = false;}
     
     if (incomingChar == 'r') {repeatSend++;}
     if (incomingChar == 'e') {sendCommand();}         //execute the command
@@ -159,86 +179,81 @@ void loop() {
 }
 
 void sendCommand() {
-  if(DEBUG){
-    Serial.print("Pressing: ");
-  }
 
   for(int i=0; i <= repeatSend; i++) {
-    if (upPress) {digitalWrite(upPin, LOW); if(DEBUG){Serial.print("up ");}}    //pressing button virtually            
-    if (downPress) {digitalWrite(downPin, LOW); if(DEBUG){Serial.print("down ");}}
-    if (myPress) {digitalWrite(myPin, LOW); if(DEBUG){Serial.print("my ");}}
-    if (progPress) {digitalWrite(progPin, LOW); if(DEBUG){Serial.print("prog ");}}
-    if (selectPress) {digitalWrite(selectPin, LOW); if(DEBUG){Serial.print("select ");}}
+    if (doChannelSwitch){switchToChannel(wantedChannel);}
+    if (upPress) {pressUp(holdTime);}                            
+    if (downPress) {pressDown(holdTime);}
+    if (myPress) {pressMy(holdTime);}
+    if (progPress) {pressProg(holdTime);}
+    if (selectPress) {pressSelect(holdTime);}
     digitalWrite(ledPin, HIGH);
-
-    if(DEBUG){
-      Serial.print("for ");
-      Serial.print(holdTime);                                                     
-      Serial.println(" ms");
-    }
-
-    delay(holdTime);                                                            // how long should it be pressed
-
-    digitalWrite(progPin, HIGH);                                                // unpressing the/all button again
-    digitalWrite(upPin, HIGH);
-    digitalWrite(downPin, HIGH);
-    digitalWrite(myPin, HIGH);
-    digitalWrite(selectPin, HIGH);
-    digitalWrite(ledPin, LOW);
-
-    delay(holdTime);                                                            // again wait some time
   }
   
-  upPress = false;                                                              // resetting configuration
-  downPress = false;
-  myPress = false;
-  progPress = false;
-  selectPress = false;
-  
-
-  holdTime = 0;
-  repeatSend = 0;
+  resetConfiguration();
   
   if(DEBUG){
     Serial.println("done.");
   }
 }
 
-int switchToChannel(int newChannel){
+// Resetting configuration
+void resetConfiguration(){
+  upPress = false;                                                              
+  downPress = false;
+  myPress = false;
+  progPress = false;
+  selectPress = false;
+  doChannelSwitch = false;
+  holdTime = 0;
+  repeatSend = 0;
+}
+
+void switchToChannel(int newChannel){
   while(getActiveChannel() != newChannel){
-    pressSelect();
+    if(DEBUG){
+      Serial.print("Actual Channel ");
+      Serial.println(iActualChannel);
+    }
+    switchChannelOrWakeUpRemote();
   }
-  return 0;
+
+  if(DEBUG){
+    Serial.print("New Actual Channel ");
+    Serial.println(newChannel);
+  }
+
+  // Hopefully we are at the correct channel now, so a channel switch is done!
+  // doChannelSwitch = false;
 }
 
 //Press select to switch the Channel
-void pressSelect(){
-  digitalWrite(selectPin, LOW);
-  delay(100);
-  digitalWrite(selectPin, HIGH);  
-  delay(100);
+void switchChannelOrWakeUpRemote(){
+  if(DEBUG){
+    Serial.print("Switching Channel / Waking up remote ");
+  }
+  pressSelect(100);
 }
 
 // Get actual Channel
 int getActiveChannel(){
-
-  if(measureVoltage(A0) > measuredLEDVoltage){ //measure LED1
+  if(measureVoltage(A0) > measuredLedVoltage){ //measure LED1
     iActualChannel = 0;
     return iActualChannel;
   }
-  if(measureVoltage(A1) > measuredLEDVoltage){ //measure LED2
+  if(measureVoltage(A1) > measuredLedVoltage){ //measure LED2
     iActualChannel = 1;
     return iActualChannel;
   }
-  if(measureVoltage(A2) > measuredLEDVoltage){ //measure LED3
+  if(measureVoltage(A2) > measuredLedVoltage){ //measure LED3
     iActualChannel = 2;
     return iActualChannel;
   }
-  if(measureVoltage(A3) > measuredLEDVoltage){ //measure LED4
+  if(measureVoltage(A3) > measuredLedVoltage){ //measure LED4
     iActualChannel = 3;
     return iActualChannel;
   }
-  if(measureVoltage(A4) > measuredLEDVoltage){ //measure LED5
+  if(measureVoltage(A4) > measuredLedVoltage){ //measure LED5
     iActualChannel = 4;
     return iActualChannel;
   }
@@ -249,21 +264,78 @@ int getActiveChannel(){
 
 double measureVoltage(uint8_t Pin){
   delay(10);
-  double voltage = (analogRead(Pin)*REF_VOLTAGE/PIN_STEPS);
   if(DEBUG){
-    Serial.println("U = ");
+    Serial.print("Measuring ");
+    Serial.println(Pin);
+  }
+
+  double voltage = (analogRead(A0)*REF_VOLTAGE/PIN_STEPS);
+  
+  if(DEBUG){
+    Serial.print("U = ");
     Serial.print(voltage);
     Serial.println(" V");
   }
   return voltage;
 }
 
-// In case there is no voltage measured, no LED is glowing, and Remote is sleeping... hopefully, needs to be tested
-void wakeUpRemote(){
-  if(getActiveChannel() == -1){
-    digitalWrite(selectPin, LOW);
-    delay(20);
-    digitalWrite(selectPin, HIGH);  
-    delay(20);
-  }
+void pressUp(int holdTime){
+  digitalWrite(upPin, LOW); 
+  if(DEBUG){
+    Serial.print("Pressing Up-Key for ");
+    Serial.print(holdTime);                                                     
+    Serial.println(" ms");
+    }
+  delay(holdTime);
+  digitalWrite(upPin, HIGH); 
+  delay(holdTime);
 }
+
+void pressDown(int holdTime){
+  digitalWrite(downPin, LOW); 
+  if(DEBUG){
+    Serial.print("Pressing Down-Key for ");
+    Serial.print(holdTime);                                                     
+    Serial.println(" ms");
+    }
+  delay(holdTime);
+  digitalWrite(downPin, HIGH); 
+  delay(holdTime);
+}
+
+void pressMy(int holdTime){
+  digitalWrite(myPin, LOW); 
+  if(DEBUG){
+    Serial.print("Pressing My-Key for ");
+    Serial.print(holdTime);                                                     
+    Serial.println(" ms");
+    }
+  delay(holdTime);
+  digitalWrite(myPin, HIGH); 
+  delay(holdTime);
+}
+
+void pressProg(int holdTime){
+  digitalWrite(progPin, LOW); 
+  if(DEBUG){
+    Serial.print("Pressing Prog-Key for ");
+    Serial.print(holdTime);                                                     
+    Serial.println(" ms");
+    }
+  delay(holdTime);
+  digitalWrite(progPin, HIGH); 
+  delay(holdTime);
+}
+
+void pressSelect(int holdTime){
+  digitalWrite(selectPin, LOW); 
+  if(DEBUG){
+    Serial.print("Pressing Select-Key for ");
+    Serial.print(holdTime);                                                     
+    Serial.println(" ms");
+    }
+  delay(holdTime);
+  digitalWrite(selectPin, HIGH); 
+  delay(holdTime);
+}
+
