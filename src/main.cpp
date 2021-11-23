@@ -26,6 +26,8 @@ void switchChannelOrWakeUpRemote();
 void resetConfiguration();
 void switchToChannel(int newChannel);
 
+int getActiveChannelTest();
+
 void pressUp(int holdTime);
 void pressDown(int holdTime);
 void pressProg(int holdTime);
@@ -102,7 +104,8 @@ void loop() {
   while (Serial.available() == 0) { 
     delay(50);                                    // wait until serial command comes in
     //switchChannelOrWakeUpRemote();
-    //delay(5000);
+    //getActiveChannel();
+    //delay(2000);
   }  
   
   if (Serial.available() > 0) {
@@ -235,6 +238,13 @@ void switchChannelOrWakeUpRemote(){
   pressSelect(100);
 }
 
+int getActiveChannelTest(){
+  if(measureVoltage(A2) > measuredLedVoltage){ //measure LED1
+    iActualChannel = 0;
+    return iActualChannel;
+  }
+}
+
 // Get actual Channel
 int getActiveChannel(){
   if(measureVoltage(A0) > measuredLedVoltage){ //measure LED1
@@ -266,10 +276,10 @@ double measureVoltage(uint8_t Pin){
   delay(10);
   if(DEBUG){
     Serial.print("Measuring ");
-    Serial.println(Pin);
+    Serial.println(Pin); //14
   }
 
-  double voltage = (analogRead(A0)*REF_VOLTAGE/PIN_STEPS);
+  double voltage = (analogRead(Pin)*REF_VOLTAGE/PIN_STEPS);
   
   if(DEBUG){
     Serial.print("U = ");
