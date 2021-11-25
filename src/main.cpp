@@ -8,7 +8,7 @@
 #define TESTMODE false
 #define DEBUG false
 
-// Voltage Measuring Pins A0 = Ch1 (zB. Wohnzimmer), A1 = Ch2 (Küchentür), A2 = Ch3 (Küchenfenster), A3 = Ch4(Bad), A4 = Ch5 (Oben)
+// Voltage Measuring Pins A1 = Ch1 (zB. Wohnzimmer), A2 = Ch2 (Küchentür), A3 = Ch3 (Küchenfenster), A4 = Ch4(Bad), A5 = Ch5 (Oben)
 #define REF_VOLTAGE    5.0
 #define PIN_STEPS   1024.0
 #define MAX_CHANNEL 5
@@ -184,6 +184,9 @@ void loop() {
   
 }
 
+/**
+ * Executes the action defined by the command sent to arduino
+ **/
 void sendCommand() {
 
   for(int i=0; i <= repeatSend; i++) {
@@ -202,7 +205,9 @@ void sendCommand() {
   }
 }
 
-// Resetting configuration
+/**
+ * Resets all configuration and command flags
+ */
 void resetConfiguration(){
   upPress = false;                                                              
   downPress = false;
@@ -214,7 +219,10 @@ void resetConfiguration(){
   holdTime = 0;
   repeatSend = 0;
 }
-
+/**
+ * Switches to channel defined by argument
+ * @param newChannel The new channel to switch to
+ **/
 void switchToChannel(int newChannel){
   while(getActiveChannel() != newChannel){
     if(DEBUG){
@@ -230,7 +238,9 @@ void switchToChannel(int newChannel){
   }
 }
 
-//Press select to switch the Channel
+/**
+ * Wakes up the remote or changes the channel via pressing select
+ **/
 void switchChannelOrWakeUpRemote(){
   if(DEBUG){
     Serial.println("Switching Channel / Waking up remote ");
@@ -238,14 +248,10 @@ void switchChannelOrWakeUpRemote(){
   pressSelect(100);
 }
 
-int getActiveChannelTest(){
-  if(measureVoltage(A1) < ledVoltageLevel){ //measure LED1
-    iActualChannel = 0;
-    return iActualChannel;
-  }
-}
-
-// Get actual Channel
+/**
+ * Gets the actual channel as an integer return value and writes global variable iActualChannel accordingly.
+ * @return The actual measured channel, -1 if no channel detected
+ **/
 int getActiveChannel(){
   double allMeasurements[4] = {0.0,0.0,0.0,0.0};
   allMeasurements[0] = measureVoltage(A1);          // Measure all Channels first
@@ -298,23 +304,30 @@ int getActiveChannel(){
   return -1;
 }
 
+/**
+ * Measures the specified analog pin
+ * @param Pin AD pin of arduino which is measured
+ * @return Measured voltage of the analog pin
+ **/
 double measureVoltage(uint8_t Pin){
   delay(10);
-  /*if(DEBUG){
+  if(DEBUG){
     Serial.print("Measuring ");
-    Serial.println(Pin); //14
-  }*/
-
+    Serial.println(Pin);
+  }
   double voltage = (analogRead(Pin)*REF_VOLTAGE/PIN_STEPS);
-  
-  /*if(DEBUG){
+  if(DEBUG){
     Serial.print("U = ");
     Serial.print(voltage);
     Serial.println(" V");
-  }*/
+  }
   return voltage;
 }
 
+/**
+ * Presses the UP (^) button of the remote virtually
+ * @param holdTime The time (ms) how long the button is pressed
+ **/
 void pressUp(int holdTime){
   digitalWrite(upPin, LOW); 
   if(DEBUG){
@@ -327,6 +340,10 @@ void pressUp(int holdTime){
   delay(holdTime);
 }
 
+/**
+ * Presses the DOWN (v) button of the remote virtually
+ * @param holdTime The time (ms) how long the button is pressed
+ **/
 void pressDown(int holdTime){
   digitalWrite(downPin, LOW); 
   if(DEBUG){
@@ -339,6 +356,10 @@ void pressDown(int holdTime){
   delay(holdTime);
 }
 
+/**
+ * Presses the MY button of the remote virtually
+ * @param holdTime The time (ms) how long the button is pressed
+ **/
 void pressMy(int holdTime){
   digitalWrite(myPin, LOW); 
   if(DEBUG){
@@ -351,6 +372,10 @@ void pressMy(int holdTime){
   delay(holdTime);
 }
 
+/**
+ * Presses the PROG (PRG) button of the remote virtually
+ * @param holdTime The time (ms) how long the button is pressed
+ **/
 void pressProg(int holdTime){
   digitalWrite(progPin, LOW); 
   if(DEBUG){
@@ -363,6 +388,10 @@ void pressProg(int holdTime){
   delay(holdTime);
 }
 
+/**
+ * Presses the SELECT button of the remote virtually
+ * @param holdTime The time (ms) how long the button is pressed
+ **/
 void pressSelect(int holdTime){
   digitalWrite(selectPin, LOW); 
   if(DEBUG){
