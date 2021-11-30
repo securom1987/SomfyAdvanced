@@ -21,6 +21,7 @@ int myPin = 11;
 int selectPin = 9;
 int ledPin = 13;
 
+
 void sendCommand();
 double measureVoltage(uint8_t Pin);
 int getActiveChannel();
